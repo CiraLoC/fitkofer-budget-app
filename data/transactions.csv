@@ -1,3 +1,0 @@
-id,date,user,type,account,category,description,quantity,unit_price,amount,currency,src_account,dst_account,pair_id,frequency
-eab0b408-6e46-46cb-b187-6d3200ccef89,2025-08-29,Marko,Trošak,Racun Marko,Hrana,Maxi,1.0,1000.0,-1000.0,RSD,Racun Marko,,,Ad hoc
-d6b17b55-97bc-46a5-b4a1-8b310648c4a7,2025-09-19,Marko,Trošak,Racun Marko,Hrana,Lidl,1.0,3500.0,-3500.0,RSD,Racun Marko,,,Ad hoc
