@@ -1,0 +1,3 @@
+id,date,user,type,account,category,description,quantity,unit_price,amount,currency,src_account,dst_account,pair_id,frequency
+67bff422-352e-472b-abb7-b8663e09d4c4,2025-10-11,Marko,Trošak,Racun Marko,Racuni,SBB,1.0,4000.0,-4000.0,RSD,Racun Marko,,,Mesečno
+f1af83cf-9a4f-497a-b2e9-30c437d6dee4,2025-10-11,Marko,Trošak,Racun Marko,Supplementacija,GymBeam,1.0,11492.0,-11492.0,RSD,Racun Marko,,,Ad hoc
