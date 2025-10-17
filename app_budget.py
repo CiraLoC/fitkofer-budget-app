@@ -23,6 +23,10 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
+import json
+import gspread
+from google.oauth2.service_account import Credentials
+
 
 # ----------------------------- Page setup -----------------------------------
 st.set_page_config(
@@ -52,6 +56,31 @@ TXN_COLUMNS = [
 BUDGET_COLUMNS = ["month","category","expected"]
 ACCOUNTS_COLUMNS = ["account","currency"]
 OPENING_COLUMNS = ["month","account","opening_balance"]
+
+def _gs_client():
+    """
+    Ako postoje GSheets tajne u st.secrets, vrati (gspread_client, spreadsheet_name),
+    inače (None, None) pa CSV fallback radi dalje.
+    """
+    try:
+        creds_info = st.secrets.get("GSHEETS_CREDENTIALS", None)
+        ss_name = st.secrets.get("GSHEETS_SPREADSHEET", None)
+    except Exception:
+        return None, None
+
+    if not creds_info or not ss_name:
+        return None, None
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets",
+              "https://www.googleapis.com/auth/drive"]
+    try:
+        credentials = Credentials.from_service_account_info(json.loads(creds_info), scopes=scopes)
+        client = gspread.authorize(credentials)
+        return client, ss_name
+    except Exception as e:
+        st.warning(f"GSheets autentikacija nije uspela, koristi se CSV fallback. Detalj: {e}")
+        return None, None
+
 
 # Optional password gate via Streamlit secrets
 def _get_secret(key: str):
@@ -89,15 +118,70 @@ def ensure_csv(path: Path, columns: List[str]) -> None:
         pd.DataFrame(columns=columns).to_csv(path, index=False, encoding="utf-8")
 
 def load_df(path: Path, columns: List[str]) -> pd.DataFrame:
+    """
+    Ako su podešeni GSheets secrets → čitaj iz taba čije je ime = path.stem
+    (npr. transactions.csv → tab 'transactions').
+    U suprotnom koristi lokalni CSV (fallback).
+    """
+    client, ss_name = _gs_client()
+    if client and ss_name:
+        try:
+            sh = client.open(ss_name)
+            ws = sh.worksheet(path.stem)
+            data = ws.get_all_records()  # list of dicts
+            df = pd.DataFrame(data)
+            # garantuj kolone i poredak
+            for c in columns:
+                if c not in df.columns:
+                    df[c] = np.nan
+            return df[columns]
+        except gspread.WorksheetNotFound:
+            # ako tab ne postoji, kreiraj prazan sa headerom
+            try:
+                sh = client.open(ss_name)
+                ws = sh.add_worksheet(title=path.stem, rows="1000", cols="50")
+                ws.update([columns])  # samo header
+                return pd.DataFrame(columns=columns)
+            except Exception as e:
+                st.warning(f"GSheets load: nije moguće kreirati tab '{path.stem}', CSV fallback. Detalj: {e}")
+        except Exception as e:
+            st.warning(f"GSheets load problem ({path.stem}), CSV fallback. Detalj: {e}")
+
+    # Fallback: CSV
     ensure_csv(path, columns)
     df = pd.read_csv(path, encoding="utf-8")
-    # garantuj kolone i redosled
     for c in columns:
-        if c not in df.columns: df[c] = np.nan
+        if c not in df.columns:
+            df[c] = np.nan
     return df[columns]
 
+
 def save_df(path: Path, df: pd.DataFrame) -> None:
+    """
+    Snimi u GSheets ako postoje tajne; u suprotnom CSV fallback.
+    """
+    client, ss_name = _gs_client()
+    if client and ss_name:
+        try:
+            sh = client.open(ss_name)
+            try:
+                ws = sh.worksheet(path.stem)
+            except gspread.WorksheetNotFound:
+                ws = sh.add_worksheet(title=path.stem, rows="1000", cols="50")
+            # očisti i upiši
+            ws.clear()
+            # GSheets hoće listu listi: [header] + rows
+            values = [list(df.columns)]
+            if not df.empty:
+                values += df.fillna("").astype(str).values.tolist()
+            ws.update(values)
+            return
+        except Exception as e:
+            st.warning(f"GSheets save problem ({path.stem}), CSV fallback. Detalj: {e}")
+
+    # Fallback: CSV
     df.to_csv(path, index=False, encoding="utf-8")
+
 
 def month_str(d: date) -> str:
     return f"{d:%Y-%m}"
