@@ -275,30 +275,32 @@ st.sidebar.caption("Saveti: decimale možeš sa zarezom ili tačkom. Transfer pr
 tab_unos, tab_dnevnik, tab_budzet, tab_stanja = st.tabs(["➕ Unos", "📒 Dnevnik (mesec)", "📊 Budžet", "🏦 Stanja"])
 
 # ============================= UNOS =========================================
+# ============================= UNOS =========================================
 with tab_unos:
     st.subheader("Novi unos")
 
+    # >>> Tip van forme – odmah rerenderuje UI
+    tip = st.selectbox("Tip", TYPES, index=0, key="tip_global")
+
     with st.form("unos_form", clear_on_submit=True):
-        c1, c2, c3 = st.columns([1,1,1])
+        c1, c2 = st.columns([1,1])
         with c1:
-            d = st.date_input("Datum", value=today)
+            d = st.date_input("Datum", value=today, key="unos_datum")
         with c2:
-            korisnik = st.selectbox("Korisnik", USERS, index=0)
-        with c3:
-            tip = st.selectbox("Tip", TYPES, index=0)
+            korisnik = st.selectbox("Korisnik", USERS, index=0, key="unos_user")
 
         if tip in ("Trošak", "Priliv"):
-            acc = st.selectbox("Račun", accounts_df["account"].tolist(), index=0)
+            acc = st.selectbox("Račun", accounts_df["account"].tolist(), index=0, key="unos_acc")
             currency = accounts_df.set_index("account").loc[acc, "currency"]
-            category = st.text_input("Kategorija", value="Hrana" if tip=="Trošak" else "Plata")
-            description = st.text_input("Opis / trgovac", value="")
+            category = st.text_input("Kategorija", value="Hrana" if tip=="Trošak" else "Plata", key="unos_cat")
+            description = st.text_input("Opis / trgovac", value="", key="unos_desc")
             colq, colp, colf = st.columns([1,1,1])
             with colq:
-                qty = normalize_float(st.text_input("Količina", value="1"))
+                qty = normalize_float(st.text_input("Količina", value="1", key="unos_qty"))
             with colp:
-                price = normalize_float(st.text_input("Cena (po jedinici)", value="0"))
+                price = normalize_float(st.text_input("Cena (po jedinici)", value="0", key="unos_price"))
             with colf:
-                freq = st.selectbox("Učestalost", ["Ad hoc","Nedeljno","Mesečno","Godišnje"], index=0)
+                freq = st.selectbox("Učestalost", ["Ad hoc","Nedeljno","Mesečno","Godišnje"], index=0, key="unos_freq")
 
             submitted = st.form_submit_button("💾 Sačuvaj")
             if submitted:
@@ -325,10 +327,59 @@ with tab_unos:
                         "frequency": freq,
                     }
                     add_rows(TRANSACTIONS_CSV, [row], TXN_COLUMNS)
-                    # lokalni refresh
                     tx_df = load_df(TRANSACTIONS_CSV, TXN_COLUMNS)
                     tx_df = to_numeric_df(tx_df, ["quantity","unit_price","amount"])
                     st.success(f"Sačuvano: {tip} {fmt_rsd(abs(total))} {currency} na {acc}.")
+
+        else:  # Transfer
+            csrc, cdst = st.columns(2)
+            with csrc:
+                src = st.selectbox("Izvorni račun", accounts_df["account"].tolist(), index=0, key="transfer_src")
+                src_cur = accounts_df.set_index("account").loc[src, "currency"]
+            with cdst:
+                dst = st.selectbox("Odredišni račun", accounts_df["account"].tolist(), index=1, key="transfer_dst")
+                dst_cur = accounts_df.set_index("account").loc[dst, "currency"]
+
+            amount_txt = st.text_input("Iznos za transfer (izvorna valuta)", value="0", key="transfer_amount")
+            freq = st.selectbox("Učestalost", ["Ad hoc","Mesečno"], index=0, key="transfer_freq")
+            desc = st.text_input("Opis (opciono)", value="Transfer", key="transfer_desc")
+
+            submitted = st.form_submit_button("🔁 Izvrši transfer")
+            if submitted:
+                amount = normalize_float(amount_txt)
+                if amount is None or amount <= 0 or src == dst:
+                    st.warning("Proveri iznos i račune (mora biti pozitivan i različiti računi).")
+                else:
+                    pid = str(uuid.uuid4())
+                    out_row = {
+                        "id": str(uuid.uuid4()),
+                        "date": f"{d:%Y-%m-%d}",
+                        "user": korisnik,
+                        "type": "Transfer",
+                        "account": src,
+                        "category": "Transfer",
+                        "description": desc,
+                        "quantity": 1, "unit_price": amount, "amount": -amount,
+                        "currency": src_cur, "src_account": src, "dst_account": dst,
+                        "pair_id": pid, "frequency": freq,
+                    }
+                    in_row = {
+                        "id": str(uuid.uuid4()),
+                        "date": f"{d:%Y-%m-%d}",
+                        "user": korisnik,
+                        "type": "Transfer",
+                        "account": dst,
+                        "category": "Transfer",
+                        "description": desc,
+                        "quantity": 1, "unit_price": amount, "amount": amount,
+                        "currency": dst_cur, "src_account": src, "dst_account": dst,
+                        "pair_id": pid, "frequency": freq,
+                    }
+                    add_rows(TRANSACTIONS_CSV, [out_row, in_row], TXN_COLUMNS)
+                    tx_df = load_df(TRANSACTIONS_CSV, TXN_COLUMNS)
+                    tx_df = to_numeric_df(tx_df, ["quantity","unit_price","amount"])
+                    st.success(f"Transfer: {fmt_rsd(amount)} {src_cur} {src} → {dst}.")
+
 
         else:  # Transfer
             csrc, cdst = st.columns(2)
