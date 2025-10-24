@@ -379,53 +379,6 @@ with tab_unos:
                     tx_df = load_df(TRANSACTIONS_CSV, TXN_COLUMNS)
                     tx_df = to_numeric_df(tx_df, ["quantity","unit_price","amount"])
                     st.success(f"Transfer: {fmt_rsd(amount)} {src_cur} {src} → {dst}.")
-        else:  # Transfer
-            csrc, cdst = st.columns(2)
-            with csrc:
-                src = st.selectbox("Izvorni račun", accounts_df["account"].tolist(), index=0)
-                src_cur = accounts_df.set_index("account").loc[src, "currency"]
-            with cdst:
-                dst = st.selectbox("Odredišni račun", accounts_df["account"].tolist(), index=1)
-                dst_cur = accounts_df.set_index("account").loc[dst, "currency"]
-            amount_txt = st.text_input("Iznos za transfer (izvorna valuta)", value="0")
-            freq = st.selectbox("Učestalost", ["Ad hoc","Mesečno"], index=0)
-            desc = st.text_input("Opis (opciono)", value="Transfer")
-
-            submitted = st.form_submit_button("🔁 Izvrši transfer")
-            if submitted:
-                amount = normalize_float(amount_txt)
-                if amount is None or amount <= 0 or src == dst:
-                    st.warning("Proveri iznos i račune (mora biti pozitivan i različiti računi).")
-                else:
-                    pid = str(uuid.uuid4())
-                    out_row = {
-                        "id": str(uuid.uuid4()),
-                        "date": f"{d:%Y-%m-%d}",
-                        "user": korisnik,
-                        "type": "Transfer",
-                        "account": src,
-                        "category": "Transfer",
-                        "description": desc,
-                        "quantity": 1, "unit_price": amount, "amount": -amount,
-                        "currency": src_cur, "src_account": src, "dst_account": dst,
-                        "pair_id": pid, "frequency": freq,
-                    }
-                    in_row = {
-                        "id": str(uuid.uuid4()),
-                        "date": f"{d:%Y-%m-%d}",
-                        "user": korisnik,
-                        "type": "Transfer",
-                        "account": dst,
-                        "category": "Transfer",
-                        "description": desc,
-                        "quantity": 1, "unit_price": amount, "amount": amount,
-                        "currency": dst_cur, "src_account": src, "dst_account": dst,
-                        "pair_id": pid, "frequency": freq,
-                    }
-                    add_rows(TRANSACTIONS_CSV, [out_row, in_row], TXN_COLUMNS)
-                    tx_df = load_df(TRANSACTIONS_CSV, TXN_COLUMNS)
-                    tx_df = to_numeric_df(tx_df, ["quantity","unit_price","amount"])
-                    st.success(f"Transfer: {fmt_rsd(amount)} {src_cur} {src} → {dst}.")
 
 # ============================= DNEVNIK =======================================
 with tab_dnevnik:
