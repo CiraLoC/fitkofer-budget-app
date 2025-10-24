@@ -379,8 +379,6 @@ with tab_unos:
                     tx_df = load_df(TRANSACTIONS_CSV, TXN_COLUMNS)
                     tx_df = to_numeric_df(tx_df, ["quantity","unit_price","amount"])
                     st.success(f"Transfer: {fmt_rsd(amount)} {src_cur} {src} → {dst}.")
-
-
         else:  # Transfer
             csrc, cdst = st.columns(2)
             with csrc:
